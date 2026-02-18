@@ -54,3 +54,23 @@ export interface ShortageAlert {
   count: number;
   dayName: string;
 }
+
+// Leave Management Types
+export type LeaveCategory = 'SUBSTITUTE' | 'ANNUAL' | 'REGULAR' | 'FAMILY' | 'LONG_SERVICE' | 'LABOR_DAY';
+
+export interface LeaveRecord {
+  id: string;
+  staffId: string;
+  type: LeaveCategory;
+  date: string;     // YYYY-MM-DD (Usage Date)
+  days: number;     // e.g., 1, 0.5, -1
+  memo?: string;
+  createdAt: number;
+  targetMonth?: number; // Month bucket (1-12)
+  year?: number;        // Year bucket (e.g., 2025, 2026) - Essential for records with empty usage dates
+  refDate?: string;     // Reference Date for sorting (e.g., Holiday Date) even if usage date is empty
+}
+
+export interface AnnualLeaveConfig {
+  [staffId: string]: number; // Total annual leave days allowed
+}

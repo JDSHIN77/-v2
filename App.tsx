@@ -2,13 +2,14 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { 
   Calendar, Users, ChevronLeft, ChevronRight, 
-  MonitorPlay, X, Trash2, Sparkles, RefreshCw, Check, Plus, Eraser
+  MonitorPlay, X, Trash2, Sparkles, RefreshCw, Check, Plus, Eraser, Plane
 } from 'lucide-react';
-import { Staff, MonthSchedule, ShiftType, ShiftInfo, Cinema, ShiftData, StaffStats } from './types';
+import { Staff, MonthSchedule, ShiftType, ShiftInfo, Cinema, ShiftData, StaffStats, LeaveRecord, AnnualLeaveConfig } from './types';
 import { DEFAULT_SHIFTS, CINEMAS as INITIAL_CINEMAS, HOLIDAYS } from './constants';
 import { formatDateKey, getCinemaMonthRange } from './utils/helpers';
 import { MatrixView } from './components/ScheduleMatrix';
 import { StaffManagement } from './components/StaffManagement';
+import { LeaveManagement } from './components/LeaveManagement';
 
 const CUSTOM_COLORS = [
   'bg-pink-50 text-pink-700 border-pink-200 ring-1 ring-pink-100',
@@ -25,7 +26,7 @@ const CUSTOM_COLORS = [
 
 export default function App() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [activeTab, setActiveTab] = useState<'calendar' | 'staff'>('calendar');
+  const [activeTab, setActiveTab] = useState<'calendar' | 'staff' | 'leave'>('calendar');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingTarget, setGeneratingTarget] = useState<string | null>(null);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
@@ -40,6 +41,10 @@ export default function App() {
   // Custom Shift Creation State
   const [isAddingShift, setIsAddingShift] = useState(false);
   const [newShiftName, setNewShiftName] = useState('');
+
+  // Leave Management State
+  const [leaveRecords, setLeaveRecords] = useState<LeaveRecord[]>([]);
+  const [annualConfig, setAnnualConfig] = useState<AnnualLeaveConfig>({});
 
   const [staffList, setStaffList] = useState<Staff[]>([
     { id: '1', name: '김미소', cinema: 'BUWON', position: '점장' },
@@ -493,6 +498,7 @@ export default function App() {
           <div className="flex bg-slate-100 p-1 rounded-xl">
              <button onClick={() => setActiveTab('calendar')} className={`flex items-center gap-2 px-6 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'calendar' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}><Calendar size={16}/> 근무표</button>
              <button onClick={() => setActiveTab('staff')} className={`flex items-center gap-2 px-6 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'staff' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}><Users size={16}/> 직원 정보</button>
+             <button onClick={() => setActiveTab('leave')} className={`flex items-center gap-2 px-6 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'leave' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}><Plane size={16}/> 휴가 관리</button>
           </div>
 
           <div className="flex items-center gap-3">
@@ -531,7 +537,7 @@ export default function App() {
                     cinemas={cinemas}
                     onUpdateCinemaName={updateCinemaName}
                 />
-            ) : (
+            ) : activeTab === 'staff' ? (
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     <StaffManagement 
                         staffList={staffList} 
@@ -540,6 +546,18 @@ export default function App() {
                         cinemas={cinemas}
                     />
                 </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
+                  <LeaveManagement
+                      staffList={staffList}
+                      leaveRecords={leaveRecords}
+                      setLeaveRecords={setLeaveRecords}
+                      annualConfig={annualConfig}
+                      setAnnualConfig={setAnnualConfig}
+                      currentYear={currentDate.getFullYear()}
+                      cinemas={cinemas}
+                  />
+              </div>
             )}
         </div>
       </main>
