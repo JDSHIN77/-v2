@@ -1,14 +1,14 @@
+
 import React, { useState, useMemo, useCallback } from 'react';
 import { 
   Calendar, Users, ChevronLeft, ChevronRight, 
-  MonitorPlay, X, Trash2, OctagonAlert, BrainCircuit, Sparkles, RefreshCw, Check, Plus, Eraser
+  MonitorPlay, X, Trash2, Sparkles, RefreshCw, Check, Plus, Eraser
 } from 'lucide-react';
 import { Staff, MonthSchedule, ShiftType, ShiftInfo, Cinema, ShiftData, StaffStats } from './types';
 import { DEFAULT_SHIFTS, CINEMAS as INITIAL_CINEMAS, HOLIDAYS } from './constants';
 import { formatDateKey, getCinemaMonthRange } from './utils/helpers';
 import { MatrixView } from './components/ScheduleMatrix';
 import { StaffManagement } from './components/StaffManagement';
-import { analyzeSchedule } from './services/geminiService';
 
 const CUSTOM_COLORS = [
   'bg-pink-50 text-pink-700 border-pink-200 ring-1 ring-pink-100',
@@ -40,9 +40,6 @@ export default function App() {
   // Custom Shift Creation State
   const [isAddingShift, setIsAddingShift] = useState(false);
   const [newShiftName, setNewShiftName] = useState('');
-
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
 
   const [staffList, setStaffList] = useState<Staff[]>([
     { id: '1', name: '김미소', cinema: 'BUWON', position: '점장' },
@@ -499,9 +496,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
-             <button onClick={async () => { setIsAnalyzing(true); setAiAnalysis(await analyzeSchedule(staffList, schedules, stats)); setIsAnalyzing(false); }} disabled={isAnalyzing} className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition shadow-sm border border-indigo-100">
-                <BrainCircuit size={20} className={isAnalyzing ? 'animate-pulse' : ''} />
-             </button>
              <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
                 <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))} className="p-1.5 hover:bg-slate-50 rounded-lg"><ChevronLeft size={16} /></button>
                 <span className="text-sm font-black px-4 tabular-nums">{currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월</span>
@@ -695,48 +689,6 @@ export default function App() {
                   setSchedules(next); 
                   setIsManualClearModalOpen(false); 
               }} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold">삭제</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {aiAnalysis && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-end bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-md h-[95%] rounded-[40px] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-500">
-            <div className="p-8 bg-indigo-600 text-white flex justify-between items-start shrink-0">
-               <div>
-                  <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-4"><BrainCircuit size={28}/></div>
-                  <h3 className="text-2xl font-black">근무 분석 리포트</h3>
-                  <p className="text-indigo-100 text-sm mt-1">{aiAnalysis.overallStatus}</p>
-               </div>
-               <button onClick={() => setAiAnalysis(null)} className="p-2 hover:bg-white/10 rounded-full transition"><X size={24}/></button>
-            </div>
-            <div className="flex-1 overflow-auto p-8 space-y-8 custom-scrollbar">
-               <div>
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">중요 주의사항</h4>
-                  <div className="space-y-4">
-                    {aiAnalysis.warnings.map((w: any, idx: number) => (
-                      <div key={idx} className="p-4 bg-red-50 border border-red-100 rounded-2xl">
-                         <div className="flex items-center gap-2 text-red-700 font-bold mb-1 text-sm">
-                            <OctagonAlert size={14}/> {w.staffName}
-                         </div>
-                         <p className="text-xs text-red-600 mb-2 leading-relaxed">{w.issue}</p>
-                         <p className="text-[10px] font-bold text-slate-700 bg-white/50 p-2 rounded-lg">{w.suggestion}</p>
-                      </div>
-                    ))}
-                  </div>
-               </div>
-               <div>
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">최적화 제안</h4>
-                  <ul className="space-y-3">
-                    {aiAnalysis.optimizationTips.map((tip: string, idx: number) => (
-                      <li key={idx} className="flex items-start gap-3 text-sm text-slate-600 leading-snug">
-                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 shrink-0"></div>
-                        {tip}
-                      </li>
-                    ))}
-                  </ul>
-               </div>
             </div>
           </div>
         </div>
