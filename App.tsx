@@ -4,12 +4,13 @@ import {
   Calendar, Users, ChevronLeft, ChevronRight, 
   MonitorPlay, X, Trash2, Sparkles, RefreshCw, Check, Plus, Eraser, Plane
 } from 'lucide-react';
-import { Staff, MonthSchedule, ShiftType, ShiftInfo, Cinema, ShiftData, StaffStats, LeaveRecord, AnnualLeaveConfig } from './types';
+import { Staff, MonthSchedule, ShiftType, ShiftInfo, Cinema, ShiftData, StaffStats, LeaveRecord, AnnualLeaveConfig, DailyOperatingHours } from './types';
 import { DEFAULT_SHIFTS, CINEMAS as INITIAL_CINEMAS, HOLIDAYS } from './constants';
 import { formatDateKey, getCinemaMonthRange } from './utils/helpers';
 import { MatrixView } from './components/ScheduleMatrix';
 import { StaffManagement } from './components/StaffManagement';
 import { LeaveManagement } from './components/LeaveManagement';
+import { OperatingHoursModal } from './components/OperatingHoursModal';
 
 const CUSTOM_COLORS = [
   'bg-pink-50 text-pink-700 border-pink-200 ring-1 ring-pink-100',
@@ -46,6 +47,11 @@ export default function App() {
   const [leaveRecords, setLeaveRecords] = useState<LeaveRecord[]>([]);
   const [annualConfig, setAnnualConfig] = useState<AnnualLeaveConfig>({});
 
+  // Operating Hours State & Modal
+  const [operatingHours, setOperatingHours] = useState<DailyOperatingHours>({});
+  const [opHoursModal, setOpHoursModal] = useState<{isOpen: boolean, cinema: Cinema | null}>({ isOpen: false, cinema: null });
+
+
   const [staffList, setStaffList] = useState<Staff[]>([
     { id: '1', name: '김미소', cinema: 'BUWON', position: '점장' },
     { id: '2', name: '이열정', cinema: 'BUWON', position: '매니저' },
@@ -77,13 +83,11 @@ export default function App() {
           return;
       }
 
-      // 1. 통계 초기화
       const balanceStats: Record<string, { OPEN: number, MIDDLE: number, CLOSE: number, WEEKEND: number }> = {};
       targetStaff.forEach(s => {
           balanceStats[s.id] = { OPEN: 0, MIDDLE: 0, CLOSE: 0, WEEKEND: 0 };
       });
 
-      // 기존 데이터 통계 반영
       days.forEach((day, idx) => {
          const currentWeekIdx = Math.floor(idx / 7);
          const dKey = formatDateKey(day);
@@ -105,7 +109,6 @@ export default function App() {
          });
       });
 
-      // 2. 스케줄 생성 (주 단위 순회)
       for (let i = 0; i < days.length; i += 7) {
         const weekIdx = Math.floor(i / 7);
         if (isWeekly && weekIdx !== targetWeekIdx) continue;
@@ -115,17 +118,13 @@ export default function App() {
             if(i+j < days.length) weekIndices.push(i+j);
         }
         
-        // --- [STEP 1] 일별 최소 필요 인원 계산 ---
         const dailyMinReq = weekIndices.map(dayGlobalIdx => {
             const dKey = formatDateKey(days[dayGlobalIdx]);
             
-            // 본인 지점 스태프의 수동 근무 확인
             const targetManuals = targetStaff.map(s => newSchedules[dKey]?.[s.id]).filter(shift => shift?.isManual);
             let hasManualOpen = targetManuals.some(s => s?.value === 'OPEN');
             let hasManualClose = targetManuals.some(s => s?.value === 'CLOSE');
 
-            // 타 지점 스태프의 지원 근무 확인 (겸직)
-            // 아울렛 스케줄 생성 시, 타 지점(부원) 직원의 겸직오픈/겸직마감이 있으면 해당 포지션 충족으로 간주
             if (targetCinema === 'OUTLET') {
                  const otherStaff = staffList.filter(s => s.cinema !== targetCinema);
                  otherStaff.forEach(s => {
@@ -145,12 +144,10 @@ export default function App() {
             return manualWorkerCount + neededAutoOpen + neededAutoClose;
         });
 
-        // --- [STEP 2] 주휴(OFF) 계획 수립 ---
         const dailyActiveWorkers = weekIndices.map(() => targetStaff.length);
         const plannedOffs: Record<string, number[]> = {};
         targetStaff.forEach(s => plannedOffs[s.id] = []);
 
-        // 2-1. 수동 OFF 확인 및 인원 차감
         weekIndices.forEach((dayGlobalIdx, wLocalIdx) => {
             const dKey = formatDateKey(days[dayGlobalIdx]);
             targetStaff.forEach(s => {
@@ -162,7 +159,6 @@ export default function App() {
             });
         });
 
-        // 2-2. 자동 OFF 배정
         targetStaff.forEach(s => {
             const currentOffCount = plannedOffs[s.id].length;
             let needed = 2 - currentOffCount;
@@ -205,7 +201,6 @@ export default function App() {
             }
         });
 
-        // --- [STEP 3] 일별 근무 배정 ---
         weekIndices.forEach((dayGlobalIdx, wLocalIdx) => { 
             const dateObj = days[dayGlobalIdx];
             const dateKey = formatDateKey(dateObj);
@@ -220,7 +215,6 @@ export default function App() {
             let manualClose = false;
             let availableStaff: Staff[] = [];
 
-            // Check own staff manual shifts
             targetStaff.forEach(s => {
                 const shift = newSchedules[dateKey][s.id];
                 if (shift?.isManual) {
@@ -235,8 +229,6 @@ export default function App() {
                 }
             });
 
-            // Check OTHER staff manual shifts (Dual Support)
-            // 아울렛 스케줄 생성 시, 타 지점 직원의 겸직 근무가 있으면 해당 포지션은 이미 채워진 것으로 처리
             if (targetCinema === 'OUTLET') {
                  const otherStaff = staffList.filter(s => s.cinema !== targetCinema);
                  otherStaff.forEach(s => {
@@ -311,7 +303,6 @@ export default function App() {
     const days = getCinemaMonthRange(currentDate);
     const newSchedules = JSON.parse(JSON.stringify(schedules));
     
-    // 주간 날짜 범위 계산
     const startIdx = weekIdx * 7;
     const endIdx = Math.min(startIdx + 7, days.length);
     
@@ -320,13 +311,10 @@ export default function App() {
         const daySchedule = newSchedules[dateKey];
         
         if (daySchedule) {
-             // 해당 날짜의 모든 스케줄을 순회
              Object.keys(daySchedule).forEach(staffId => {
                  const shift = daySchedule[staffId];
-                 // 수동이 아닌(자동) 스케줄만 대상
                  if (!shift.isManual) { 
                      const staff = staffList.find(s => s.id === staffId);
-                     // 해당 지점 직원인 경우 삭제
                      if (staff && staff.cinema === cinemaId) {
                          delete daySchedule[staffId];
                      }
@@ -349,13 +337,10 @@ export default function App() {
         const daySchedule = newSchedules[dateKey];
         
         if (daySchedule) {
-             // 해당 날짜의 모든 스케줄을 순회
              Object.keys(daySchedule).forEach(staffId => {
                  const shift = daySchedule[staffId];
-                 // 수동 스케줄만 대상
                  if (shift.isManual) {
                      const staff = staffList.find(s => s.id === staffId);
-                     // 해당 지점 직원인 경우 삭제
                      if (staff && staff.cinema === cinemaId) {
                          delete daySchedule[staffId];
                      }
@@ -365,6 +350,20 @@ export default function App() {
     }
     setSchedules(newSchedules);
   }, [currentDate, schedules, staffList]);
+  
+  const handleWeeklyAutoClear = () => {
+    if(weeklyClearTarget) {
+      clearWeeklySchedule(weeklyClearTarget.weekIdx, weeklyClearTarget.cinemaId);
+      setWeeklyClearTarget(null);
+    }
+  };
+
+  const handleWeeklyManualClear = () => {
+    if(weeklyClearTarget) {
+      clearWeeklyManualSchedule(weeklyClearTarget.weekIdx, weeklyClearTarget.cinemaId);
+      setWeeklyClearTarget(null);
+    }
+  };
 
   const stats = useMemo(() => {
     const days = getCinemaMonthRange(currentDate);
@@ -386,12 +385,10 @@ export default function App() {
                 const norm = shift.replace('DUAL_', '') as 'OPEN'|'MIDDLE'|'CLOSE';
                 
                 if (s.cinema === 'BUWON') {
-                    // Buwon staff working DUAL -> Counts to DUAL stats (to be shown in Outlet)
                     dualCounts[norm]++;
                     if (isWE) dualCounts.weekendWork++;
                     hasDualWork = true;
                 } else {
-                    // Outlet staff working DUAL -> Counts to Home stats (Outlet)
                     homeCounts[norm]++;
                     if (isWE) homeCounts.weekendWork++;
                 }
@@ -405,13 +402,11 @@ export default function App() {
         }
       });
 
-      // Always push Home Stats
       resultStats.push({
           ...s,
           counts: homeCounts
       });
 
-      // If Buwon staff has DUAL work, push a separate stats entry for Outlet
       if (hasDualWork && s.cinema === 'BUWON') {
           resultStats.push({
               id: `${s.id}_DUAL`,
@@ -430,19 +425,30 @@ export default function App() {
     setCinemas(prev => prev.map(c => c.id === id ? { ...c, name: newName } : c));
   };
 
-  const handleManualSave = (specificShiftId?: string) => {
-    // 인자가 있으면(더블클릭) 그 값을, 없으면(버튼클릭) 상태값을 사용
-    const targetShift = typeof specificShiftId === 'string' ? specificShiftId : tempSelectedShift;
+  const handleSaveOperatingHours = (selectedDates: string[], range: string, openShift: string, closeShift: string) => {
+     if(!opHoursModal.cinema) return;
+     const cinemaId = opHoursModal.cinema.id;
+     
+     // Split range to get start/end for display
+     const [start, end] = range.split('~').map(s => s.trim());
 
+     setOperatingHours(prev => {
+         const next = { ...prev };
+         selectedDates.forEach(dateKey => {
+             if (!next[dateKey]) next[dateKey] = {};
+             next[dateKey][cinemaId] = { start, end, openShift, closeShift };
+         });
+         return next;
+     });
+  };
+
+  const handleManualSave = (specificShiftId?: string) => {
+    const targetShift = typeof specificShiftId === 'string' ? specificShiftId : tempSelectedShift;
     if (!manualModalData || !targetShift) return;
     const next = { ...schedules };
     if(!next[manualModalData.dateKey]) next[manualModalData.dateKey] = {};
     
-    // Day object deep copy needed for immediate UI update in some edge cases, 
-    // but usually direct assignment works if key didn't exist.
-    // However, specifically for deletes, copy is crucial.
     next[manualModalData.dateKey] = { ...next[manualModalData.dateKey] };
-
     next[manualModalData.dateKey][manualModalData.staff.id] = { 
         value: targetShift, 
         isManual: true 
@@ -465,11 +471,8 @@ export default function App() {
 
   const handleConfirmAddShift = () => {
       if (!newShiftName.trim()) return;
-      
       const id = 'CUSTOM_' + Math.random().toString(36).substr(2, 9).toUpperCase();
-      
-      // 기존에 추가된 커스텀 쉬프트 개수를 기반으로 색상 순차 선택
-      const customShiftsCount = Object.keys(managedShifts).length - 5; // 기본 5개 제외
+      const customShiftsCount = Object.keys(managedShifts).length - 5; 
       const colorIndex = customShiftsCount % CUSTOM_COLORS.length;
       const selectedColor = CUSTOM_COLORS[colorIndex];
 
@@ -524,18 +527,19 @@ export default function App() {
                     onRequestClear={() => setIsClearModalOpen(true)}
                     onRequestManualClear={() => setIsManualClearModalOpen(true)}
                     generateSchedule={generateSchedule} 
-                    onClearWeek={clearWeeklySchedule}
-                    onClearManualWeek={clearWeeklyManualSchedule}
                     onOpenWeeklyClear={(weekIdx, cinemaId) => setWeeklyClearTarget({weekIdx, cinemaId})}
                     openManualModal={(dk, s, cs) => { 
                         setManualModalData({dateKey: dk, staff: s, currentShift: cs || undefined }); 
                         setTempSelectedShift(cs?.value || null); 
-                        setIsAddingShift(false); // Reset adding state
+                        setIsAddingShift(false); 
                         setNewShiftName('');
                     }} 
                     stats={stats}
                     cinemas={cinemas}
                     onUpdateCinemaName={updateCinemaName}
+                    operatingHours={operatingHours}
+                    onUpdateOperatingHours={(dateKey, cinemaId, range) => { /* handled by modal now */ }}
+                    onOpenOpHoursModal={(cinema) => setOpHoursModal({ isOpen: true, cinema })}
                 />
             ) : activeTab === 'staff' ? (
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
@@ -562,7 +566,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* Manual Shift Modal */}
+      {/* Manual Edit Modal */}
       {manualModalData && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-sm rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
@@ -630,86 +634,123 @@ export default function App() {
         </div>
       )}
 
+      {/* Monthly Auto Clear Modal */}
+      {isClearModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+            <div className="bg-white w-full max-w-sm rounded-[32px] shadow-2xl p-6 text-center animate-in zoom-in-95">
+                <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Trash2 size={24}/>
+                </div>
+                <h3 className="text-lg font-black text-slate-900 mb-2">월간 자동 생성 스케줄 삭제</h3>
+                <p className="text-xs text-slate-500 mb-6 font-medium">
+                    자동으로 생성된 근무만 삭제되며,<br/>수동으로 설정한 근무는 유지됩니다.
+                </p>
+                <div className="flex gap-2">
+                    <button onClick={() => setIsClearModalOpen(false)} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold">취소</button>
+                    <button 
+                        onClick={() => {
+                            const days = getCinemaMonthRange(currentDate);
+                            const newSchedules = { ...schedules };
+                            days.forEach(d => {
+                                const dk = formatDateKey(d);
+                                if(newSchedules[dk]) {
+                                    Object.keys(newSchedules[dk]).forEach(sid => {
+                                        if(!newSchedules[dk][sid].isManual) delete newSchedules[dk][sid];
+                                    });
+                                }
+                            });
+                            setSchedules(newSchedules);
+                            setIsClearModalOpen(false);
+                        }} 
+                        className="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600"
+                    >
+                        삭제하기
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* Monthly Manual Clear Modal */}
+      {isManualClearModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+            <div className="bg-white w-full max-w-sm rounded-[32px] shadow-2xl p-6 text-center animate-in zoom-in-95">
+                <div className="w-12 h-12 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Eraser size={24}/>
+                </div>
+                <h3 className="text-lg font-black text-slate-900 mb-2">월간 수동 설정 스케줄 삭제</h3>
+                <p className="text-xs text-slate-500 mb-6 font-medium">
+                    수동으로 설정한 근무만 삭제되며,<br/>자동 생성된 근무는 유지됩니다.
+                </p>
+                <div className="flex gap-2">
+                    <button onClick={() => setIsManualClearModalOpen(false)} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold">취소</button>
+                    <button 
+                        onClick={() => {
+                             const days = getCinemaMonthRange(currentDate);
+                             const newSchedules = { ...schedules };
+                             days.forEach(d => {
+                                 const dk = formatDateKey(d);
+                                 if(newSchedules[dk]) {
+                                     Object.keys(newSchedules[dk]).forEach(sid => {
+                                         if(newSchedules[dk][sid].isManual) delete newSchedules[dk][sid];
+                                     });
+                                 }
+                             });
+                             setSchedules(newSchedules);
+                             setIsManualClearModalOpen(false);
+                        }} 
+                        className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600"
+                    >
+                        삭제하기
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
       {/* Weekly Clear Modal */}
       {weeklyClearTarget && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white p-8 rounded-[32px] max-w-sm text-center shadow-2xl w-full">
-            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4"><Trash2 size={32}/></div>
-            <h3 className="text-xl font-bold mb-2 text-slate-900">{weeklyClearTarget.weekIdx + 1}주차 근무 삭제</h3>
-            <p className="text-slate-500 text-sm mb-6">
-                <span className="font-bold text-slate-800">{weeklyClearTarget.cinemaId === 'BUWON' ? cinemas.find(c=>c.id==='BUWON')?.name : cinemas.find(c=>c.id==='OUTLET')?.name}</span>의 근무 데이터를 삭제합니다.
-            </p>
-            <div className="flex flex-col gap-3">
-              <button onClick={() => { 
-                  clearWeeklySchedule(weeklyClearTarget.weekIdx, weeklyClearTarget.cinemaId);
-                  setWeeklyClearTarget(null);
-              }} className="w-full py-4 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition flex items-center justify-center gap-2">
-                  <Eraser size={18} className="text-slate-400"/>
-                  자동 생성된 근무만 삭제
-              </button>
-              <button onClick={() => { 
-                  clearWeeklyManualSchedule(weeklyClearTarget.weekIdx, weeklyClearTarget.cinemaId);
-                  setWeeklyClearTarget(null);
-              }} className="w-full py-4 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition flex items-center justify-center gap-2">
-                  <Trash2 size={18} className="text-red-400"/>
-                  수동 입력한 근무만 삭제
-              </button>
-              <button onClick={() => setWeeklyClearTarget(null)} className="w-full py-3 text-slate-400 text-xs font-bold hover:text-slate-600 mt-2">
-                  취소
-              </button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+            <div className="bg-white w-full max-w-sm rounded-[32px] shadow-2xl p-6 text-center animate-in zoom-in-95">
+                <div className="w-12 h-12 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Trash2 size={24}/>
+                </div>
+                <h3 className="text-lg font-black text-slate-900 mb-2">
+                    {weeklyClearTarget.weekIdx + 1}주차 {weeklyClearTarget.cinemaId === 'BUWON' ? '김해부원' : '김해아울렛'} 스케줄 삭제
+                </h3>
+                <p className="text-xs text-slate-500 mb-6 font-medium">
+                    어떤 스케줄을 삭제하시겠습니까?
+                </p>
+                <div className="flex flex-col gap-2">
+                    <button 
+                        onClick={handleWeeklyAutoClear}
+                        className="w-full py-3 bg-indigo-50 text-indigo-700 rounded-xl font-bold hover:bg-indigo-100 border border-indigo-100 flex items-center justify-center gap-2"
+                    >
+                        <Sparkles size={16}/> 자동 생성된 스케줄만 삭제
+                    </button>
+                    <button 
+                        onClick={handleWeeklyManualClear}
+                        className="w-full py-3 bg-orange-50 text-orange-700 rounded-xl font-bold hover:bg-orange-100 border border-orange-100 flex items-center justify-center gap-2"
+                    >
+                        <Eraser size={16}/> 수동 설정한 스케줄만 삭제
+                    </button>
+                    <button onClick={() => setWeeklyClearTarget(null)} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 mt-2">
+                        취소
+                    </button>
+                </div>
             </div>
-          </div>
         </div>
       )}
 
-      {isClearModalOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white p-8 rounded-[32px] max-w-sm text-center shadow-2xl">
-            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4"><Eraser size={32}/></div>
-            <h3 className="text-xl font-bold mb-2 text-slate-900">자동 생성된 근무 삭제</h3>
-            <p className="text-slate-500 text-sm mb-8">수동으로 입력한 근무는 유지하고,<br/>자동 생성된 데이터만 삭제합니다.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setIsClearModalOpen(false)} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold">취소</button>
-              <button onClick={() => { 
-                  // Deep copy for consistency
-                  const next = JSON.parse(JSON.stringify(schedules));
-                  Object.keys(next).forEach(k => {
-                      const daySchedule = next[k];
-                      Object.keys(daySchedule).forEach(sid => {
-                          if(!daySchedule[sid].isManual) delete daySchedule[sid];
-                      });
-                  });
-                  setSchedules(next); 
-                  setIsClearModalOpen(false); 
-              }} className="flex-1 py-3 bg-slate-800 text-white rounded-xl font-bold">삭제</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isManualClearModalOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white p-8 rounded-[32px] max-w-sm text-center shadow-2xl">
-            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4"><Trash2 size={32}/></div>
-            <h3 className="text-xl font-bold mb-2 text-slate-900 text-red-600">수동 입력 근무 삭제</h3>
-            <p className="text-slate-500 text-sm mb-8">직접 입력한 수동 근무 데이터가<br/>모두 삭제됩니다. 계속하시겠습니까?</p>
-            <div className="flex gap-3">
-              <button onClick={() => setIsManualClearModalOpen(false)} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold">취소</button>
-              <button onClick={() => { 
-                  // Deep copy for consistency
-                  const next = JSON.parse(JSON.stringify(schedules));
-                  Object.keys(next).forEach(k => {
-                      const daySchedule = next[k];
-                      Object.keys(daySchedule).forEach(sid => {
-                          if(daySchedule[sid].isManual) delete daySchedule[sid];
-                      });
-                  });
-                  setSchedules(next); 
-                  setIsManualClearModalOpen(false); 
-              }} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold">삭제</button>
-            </div>
-          </div>
-        </div>
+      {/* Operating Hours Modal */}
+      {opHoursModal.isOpen && opHoursModal.cinema && (
+          <OperatingHoursModal
+              isOpen={opHoursModal.isOpen}
+              onClose={() => setOpHoursModal({ isOpen: false, cinema: null })}
+              cinema={opHoursModal.cinema}
+              currentDate={currentDate}
+              onSave={handleSaveOperatingHours}
+          />
       )}
     </div>
   );

@@ -74,3 +74,15 @@ export interface LeaveRecord {
 export interface AnnualLeaveConfig {
   [staffId: string]: number; // Total annual leave days allowed
 }
+
+// Operating Hours Type
+export interface DailyOperatingHours {
+  [dateKey: string]: {
+    [cinemaId: string]: {
+      start: string;      // e.g., "09:00"
+      end: string;        // e.g., "22:00"
+      openShift: string;  // e.g., "08:00~17:00"
+      closeShift: string; // e.g., "13:00~22:00"
+    }
+  }
+}

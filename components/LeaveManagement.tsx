@@ -417,27 +417,6 @@ export const LeaveManagement: React.FC<LeaveManagementProps> = ({
                         </div>
 
                         <div className="flex items-center gap-4">
-                            {/* Substitute Stats */}
-                            <div className="text-right hidden sm:block">
-                                <div className="text-[10px] font-bold text-slate-400 uppercase">대휴 소진율</div>
-                                <div className="text-lg font-black text-indigo-600 flex items-center justify-end gap-1">
-                                    {currentStats.substitute.rate}%
-                                    <span className="text-[10px] text-slate-400 font-bold bg-white px-1.5 py-0.5 rounded border border-slate-200">
-                                        {currentStats.substitute.used}/{currentStats.substitute.total}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
-
-                            {/* Annual Stats */}
-                            <div className="text-right hidden sm:block">
-                                <div className="text-[10px] font-bold text-slate-400 uppercase">연차 소진율</div>
-                                <div className="text-lg font-black text-indigo-600">{currentStats.annual.rate}%</div>
-                            </div>
-                            
-                            <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
-                            
                             <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm group hover:border-indigo-300 transition-colors cursor-text">
                                 <span className="text-[10px] font-bold text-slate-500 uppercase">연차 한도</span>
                                 <input 

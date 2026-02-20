@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { Calendar, Trash2, RefreshCw, Sparkles, MousePointerClick, Plus, BarChart3, Pencil, Check, Palmtree, Eraser, Lock } from 'lucide-react';
-import { Staff, MonthSchedule, ShiftInfo, Cinema, StaffStats, ShiftData } from '../types';
+import { Calendar, Trash2, RefreshCw, Sparkles, MousePointerClick, Plus, BarChart3, Pencil, Check, Palmtree, Eraser, Lock, Clock, X } from 'lucide-react';
+import { Staff, MonthSchedule, ShiftInfo, Cinema, StaffStats, ShiftData, DailyOperatingHours } from '../types';
 import { formatDateKey, getCinemaMonthRange } from '../utils/helpers';
 import { HOLIDAYS } from '../constants';
 
@@ -20,9 +20,19 @@ interface MatrixViewProps {
     stats: StaffStats[];
     cinemas: Cinema[];
     onUpdateCinemaName: (id: string, name: string) => void;
+    operatingHours: DailyOperatingHours;
+    onUpdateOperatingHours: (dateKey: string, cinemaId: string, range: string) => void;
+    onOpenOpHoursModal?: (cinema: Cinema) => void;
 }
 
-const CinemaHeader: React.FC<{ cinema: Cinema, staffCount: number, onUpdate: (name: string) => void, onGenerate: () => void, isGenerating: boolean }> = ({ cinema, staffCount, onUpdate, onGenerate, isGenerating }) => {
+const CinemaHeader: React.FC<{ 
+    cinema: Cinema, 
+    staffCount: number, 
+    onUpdate: (name: string) => void, 
+    onGenerate: () => void, 
+    isGenerating: boolean,
+    onOpenOpHoursModal?: () => void
+}> = ({ cinema, staffCount, onUpdate, onGenerate, isGenerating, onOpenOpHoursModal }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [tempName, setTempName] = useState(cinema.name);
 
@@ -43,28 +53,40 @@ const CinemaHeader: React.FC<{ cinema: Cinema, staffCount: number, onUpdate: (na
 
     return (
         <div 
-            className={`p-1.5 flex items-center justify-between px-4 gap-2 text-sm font-bold border-r border-slate-200 group transition-all ${cinema.id === 'BUWON' ? 'text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100' : 'text-orange-700 bg-orange-50/50 hover:bg-orange-100'}`} 
+            className={`p-1.5 flex items-center justify-between px-4 gap-2 text-sm font-bold border-r border-slate-200 group transition-all relative ${cinema.id === 'BUWON' ? 'text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100' : 'text-orange-700 bg-orange-50/50 hover:bg-orange-100'}`} 
             style={{ gridColumn: `span ${staffCount + 1}` }}
         >
-            <div onClick={() => setIsEditing(true)} className="flex items-center gap-2 cursor-pointer">
+            <div onClick={() => setIsEditing(true)} className="flex items-center gap-2 cursor-pointer z-10">
                 <span>{cinema.id === 'BUWON' ? '🏢' : '🛍️'} {cinema.name}</span>
                 <Pencil size={12} className="opacity-0 group-hover:opacity-100 text-slate-400 transition-opacity" />
             </div>
-            <button 
-                onClick={onGenerate}
-                disabled={isGenerating}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black border shadow-sm transition-all active:scale-95 ${cinema.id === 'BUWON' ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700' : 'bg-orange-500 text-white border-orange-500 hover:bg-orange-600'} disabled:opacity-50`}
-            >
-                {isGenerating ? <RefreshCw className="animate-spin" size={12}/> : <Sparkles size={12}/>}
-                자동생성
-            </button>
+
+            <div className="flex items-center gap-1 z-10">
+                <button 
+                    onClick={onOpenOpHoursModal}
+                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] font-black border shadow-sm transition-all active:scale-95 bg-white text-slate-600 border-slate-200 hover:bg-slate-50`}
+                    title="영업시간 설정"
+                >
+                    <Clock size={12}/>
+                </button>
+
+                <button 
+                    onClick={onGenerate}
+                    disabled={isGenerating}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black border shadow-sm transition-all active:scale-95 ${cinema.id === 'BUWON' ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700' : 'bg-orange-500 text-white border-orange-500 hover:bg-orange-600'} disabled:opacity-50`}
+                >
+                    {isGenerating ? <RefreshCw className="animate-spin" size={12}/> : <Sparkles size={12}/>}
+                    자동생성
+                </button>
+            </div>
         </div>
     );
 };
 
 export const MatrixView: React.FC<MatrixViewProps> = ({ 
     currentDate, staffList, schedules, managedShifts, isGenerating, 
-    generatingTarget, onRequestClear, onRequestManualClear, generateSchedule, onOpenWeeklyClear, openManualModal, stats, cinemas, onUpdateCinemaName
+    generatingTarget, onRequestClear, onRequestManualClear, generateSchedule, onOpenWeeklyClear, openManualModal, stats, cinemas, onUpdateCinemaName,
+    operatingHours, onUpdateOperatingHours, onOpenOpHoursModal
 }) => {
     const days = getCinemaMonthRange(currentDate);
     const buwonStaff = staffList.filter(s => s.cinema === 'BUWON');
@@ -72,6 +94,11 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
 
     const buwonCinema = cinemas.find(c => c.id === 'BUWON')!;
     const outletCinema = cinemas.find(c => c.id === 'OUTLET')!;
+
+    // Grid columns: Date(70px) | OpHours(120px) | Buwon Staff... | Sum(74px) | Gap | Outlet Staff... | Sum(74px)
+    const gridTemplateStyle = { 
+        gridTemplateColumns: `70px 120px repeat(${buwonStaff.length}, 100px) 74px 2px repeat(${outletStaff.length}, 100px) 74px` 
+    };
 
     return (
       <div className="flex flex-col h-full p-4 md:p-6 space-y-4 md:space-y-6 overflow-y-auto custom-scrollbar">
@@ -96,14 +123,15 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
             <div className="flex-1 overflow-auto custom-scrollbar bg-slate-50/10">
                 <div className="min-w-max">
                     <div className="sticky top-0 z-30 shadow-sm border-b border-slate-200">
-                        <div className="grid bg-slate-50" style={{ gridTemplateColumns: `100px repeat(${buwonStaff.length}, 100px) 60px 2px repeat(${outletStaff.length}, 100px) 60px` }}>
-                            <div className="p-3 border-r border-slate-200"></div>
+                        <div className="grid bg-slate-50" style={gridTemplateStyle}>
+                            <div className="p-3 border-r border-slate-200 col-span-2 flex items-center justify-center font-black text-slate-400 text-xs bg-slate-50/50">구분</div>
                             <CinemaHeader 
                                 cinema={buwonCinema} 
                                 staffCount={buwonStaff.length} 
                                 onUpdate={(val) => onUpdateCinemaName('BUWON', val)} 
                                 onGenerate={() => generateSchedule('BUWON')}
                                 isGenerating={isGenerating && generatingTarget === 'BUWON'}
+                                onOpenOpHoursModal={onOpenOpHoursModal ? () => onOpenOpHoursModal(buwonCinema) : undefined}
                             />
                             <div className="bg-slate-300"></div>
                             <CinemaHeader 
@@ -112,10 +140,12 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
                                 onUpdate={(val) => onUpdateCinemaName('OUTLET', val)} 
                                 onGenerate={() => generateSchedule('OUTLET')}
                                 isGenerating={isGenerating && generatingTarget === 'OUTLET'}
+                                onOpenOpHoursModal={onOpenOpHoursModal ? () => onOpenOpHoursModal(outletCinema) : undefined}
                             />
                         </div>
-                        <div className="grid bg-white" style={{ gridTemplateColumns: `100px repeat(${buwonStaff.length}, 100px) 60px 2px repeat(${outletStaff.length}, 100px) 60px` }}>
+                        <div className="grid bg-white" style={gridTemplateStyle}>
                             <div className="p-3 text-[10px] font-black text-slate-400 text-center flex items-center justify-center border-r border-slate-200 bg-slate-50/50">날짜/요일</div>
+                            <div className="p-3 text-[10px] font-black text-slate-400 text-center flex items-center justify-center border-r border-slate-200 bg-slate-50/50">영업시간</div>
                             {buwonStaff.map(s => (
                                 <div key={s.id} className="p-3 border-r border-slate-200 text-center">
                                     <div className="font-bold text-slate-800 text-xs truncate">{s.name}</div>
@@ -146,13 +176,17 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
                             const isToday = new Date().toLocaleDateString() === dateObj.toLocaleDateString();
                             
                             const weekIndex = Math.floor(index / 7);
+                            
+                            // Operating Hours Data
+                            const opHours = operatingHours[dateKey] || {};
+                            const buwonOp = opHours['BUWON'];
+                            const outletOp = opHours['OUTLET'];
 
                             // Modified Count Logic
                             const buwonCount = staffList.filter(s => {
                                 const sh = dayData[s.id]?.value;
                                 if (!sh || sh === 'OFF' || sh === 'LEAVE') return false;
                                 if (s.cinema === 'BUWON') {
-                                    // Buwon staff on DUAL shift does NOT count for Buwon
                                     if (sh.startsWith('DUAL_')) return false;
                                     return true;
                                 }
@@ -162,12 +196,8 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
                             const outletCount = staffList.filter(s => {
                                 const sh = dayData[s.id]?.value;
                                 if (!sh || sh === 'OFF' || sh === 'LEAVE') return false;
-                                if (s.cinema === 'OUTLET') {
-                                    // Outlet staff on any shift (that is not OFF/LEAVE) counts for Outlet
-                                    return true; 
-                                }
+                                if (s.cinema === 'OUTLET') return true; 
                                 if (s.cinema === 'BUWON') {
-                                    // Buwon staff on DUAL shift counts for Outlet
                                     if (sh.startsWith('DUAL_')) return true;
                                     return false;
                                 }
@@ -185,43 +215,57 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
                             return (
                                 <React.Fragment key={dateKey}>
                                     {dayOfWeek === 4 && (
-                                        <div className="flex items-center justify-between bg-indigo-50/60 px-4 py-2 border-y border-slate-200 sticky left-0 z-10 w-full group/week">
-                                            <span className="text-[10px] font-black text-indigo-700 flex items-center gap-2 min-w-[100px]">
-                                                <Calendar size={12}/> {weekIndex + 1}주차 ({startMmDd} ~ {endMmDd})
-                                            </span>
+                                        <div className="grid bg-indigo-50/60 border-y border-slate-200 relative overflow-visible z-20" style={gridTemplateStyle}>
+                                            {/* Week Label */}
+                                            <div className="col-span-2 px-2 py-1.5 flex items-center justify-center border-r border-indigo-100/50">
+                                                 <span className="text-[10px] font-black text-indigo-700 flex items-center gap-1">
+                                                    <Calendar size={10}/> {weekIndex + 1}주차 <span className="opacity-70 font-normal hidden sm:inline">({startMmDd}~{endMmDd})</span>
+                                                </span>
+                                            </div>
+
+                                            {/* BUWON Spacer */}
+                                            <div className="border-r border-indigo-100/50" style={{ gridColumn: `span ${buwonStaff.length}` }}></div>
                                             
-                                            <div className="flex items-center gap-6 opacity-0 group-hover/week:opacity-100 transition-opacity">
-                                                {/* BUWON Controls */}
-                                                <div className="flex items-center gap-1 bg-white/50 rounded-lg p-0.5 border border-indigo-100/50">
+                                            {/* BUWON Controls (In Total Column) */}
+                                            <div className="relative border-r border-indigo-100/50 bg-indigo-50/30 overflow-visible">
+                                                <div className="absolute top-1/2 right-1 transform -translate-y-1/2 flex items-center gap-1.5 w-max z-10">
                                                     <button 
                                                         onClick={() => generateSchedule('BUWON', weekIndex)}
                                                         disabled={isGenerating}
-                                                        className="px-2 py-1 bg-white text-indigo-600 text-[9px] font-bold rounded border border-indigo-200 shadow-sm hover:bg-indigo-50 flex items-center gap-1"
+                                                        className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 text-white text-[9px] font-bold rounded-full shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:scale-105 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                                                     >
                                                         {isGenerating && generatingTarget === `BUWON-${weekIndex}` ? <RefreshCw className="animate-spin" size={10}/> : <Sparkles size={10}/>}
                                                         생성
                                                     </button>
                                                     <button 
                                                         onClick={() => onOpenWeeklyClear(weekIndex, 'BUWON')}
-                                                        className="px-2 py-1 bg-white text-slate-500 text-[9px] font-bold rounded border border-slate-200 shadow-sm hover:bg-red-50 hover:text-red-500 hover:border-red-200 flex items-center gap-1"
+                                                        className="flex items-center gap-1 px-2.5 py-1 bg-white text-slate-500 text-[9px] font-bold rounded-full border border-slate-200 shadow-sm hover:bg-red-50 hover:text-red-500 hover:border-red-200 hover:scale-105 transition-all active:scale-95 whitespace-nowrap"
                                                     >
                                                         <Trash2 size={10}/> 삭제
                                                     </button>
                                                 </div>
+                                            </div>
 
-                                                {/* OUTLET Controls */}
-                                                <div className="flex items-center gap-1 bg-white/50 rounded-lg p-0.5 border border-orange-100/50">
+                                            {/* Gap */}
+                                            <div className="bg-slate-300"></div>
+
+                                            {/* OUTLET Spacer */}
+                                            <div className="border-r border-indigo-100/50" style={{ gridColumn: `span ${outletStaff.length}` }}></div>
+
+                                            {/* OUTLET Controls (In Total Column) */}
+                                            <div className="relative border-r border-indigo-100/50 bg-orange-50/30 overflow-visible">
+                                                <div className="absolute top-1/2 right-1 transform -translate-y-1/2 flex items-center gap-1.5 w-max z-10">
                                                     <button 
                                                         onClick={() => generateSchedule('OUTLET', weekIndex)}
                                                         disabled={isGenerating}
-                                                        className="px-2 py-1 bg-white text-orange-600 text-[9px] font-bold rounded border border-orange-200 shadow-sm hover:bg-orange-50 flex items-center gap-1"
+                                                        className="flex items-center gap-1 px-2.5 py-1 bg-orange-500 text-white text-[9px] font-bold rounded-full shadow-lg shadow-orange-200 hover:bg-orange-600 hover:scale-105 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                                                     >
                                                         {isGenerating && generatingTarget === `OUTLET-${weekIndex}` ? <RefreshCw className="animate-spin" size={10}/> : <Sparkles size={10}/>}
                                                         생성
                                                     </button>
                                                     <button 
                                                         onClick={() => onOpenWeeklyClear(weekIndex, 'OUTLET')}
-                                                        className="px-2 py-1 bg-white text-slate-500 text-[9px] font-bold rounded border border-slate-200 shadow-sm hover:bg-red-50 hover:text-red-500 hover:border-red-200 flex items-center gap-1"
+                                                        className="flex items-center gap-1 px-2.5 py-1 bg-white text-slate-500 text-[9px] font-bold rounded-full border border-slate-200 shadow-sm hover:bg-red-50 hover:text-red-500 hover:border-red-200 hover:scale-105 transition-all active:scale-95 whitespace-nowrap"
                                                     >
                                                         <Trash2 size={10}/> 삭제
                                                     </button>
@@ -229,14 +273,36 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
                                             </div>
                                         </div>
                                     )}
-                                    <div className={`grid h-12 border-b border-slate-100 relative ${rowBgClass}`} style={{ gridTemplateColumns: `100px repeat(${buwonStaff.length}, 100px) 60px 2px repeat(${outletStaff.length}, 100px) 60px` }}>
+                                    <div className={`grid h-12 border-b border-slate-100 relative ${rowBgClass}`} style={gridTemplateStyle}>
                                         {isToday && <div className="absolute inset-0 border-2 border-indigo-500 z-10 pointer-events-none"></div>}
-                                        <div className={`p-1 border-r border-slate-200 flex flex-col items-center justify-center relative ${isToday ? 'z-20' : ''}`}>
+                                        
+                                        {/* DATE CELL */}
+                                        <div 
+                                            className={`p-1 border-r border-slate-200 flex flex-col items-center justify-center relative ${isToday ? 'z-20' : ''}`}
+                                        >
                                             <div className="flex items-center gap-1">
                                                 <span className={`text-xs font-black ${isRed ? 'text-red-600' : isBlue ? 'text-blue-600' : 'text-slate-700'}`}>{String(dayNum).padStart(2, '0')}</span>
                                                 <span className={`text-[9px] font-black ${isRed ? 'text-red-500' : isBlue ? 'text-blue-500' : 'text-slate-400'}`}>{['일','월','화','수','목','금','토'][dayOfWeek]}</span>
                                             </div>
-                                            {holidayName && <span className="text-[8px] bg-red-100 text-red-700 font-black px-1 rounded-sm mt-0.5 truncate max-w-[80px]">{holidayName}</span>}
+                                            {holidayName && <span className="text-[8px] bg-red-100 text-red-700 font-black px-1 rounded-sm mt-0.5 truncate max-w-[65px]">{holidayName}</span>}
+                                        </div>
+
+                                        {/* OPERATING HOURS CELL */}
+                                        <div className="p-1 border-r border-slate-200 flex flex-col items-center justify-center bg-slate-50/20 gap-1">
+                                            {(buwonOp || outletOp) && (
+                                                <>
+                                                    {buwonOp && (
+                                                        <div className="text-[10px] font-bold text-indigo-600 leading-none whitespace-nowrap bg-indigo-50/50 px-1.5 py-0.5 rounded-sm border border-indigo-100/50">
+                                                            {buwonOp.start}~{buwonOp.end}
+                                                        </div>
+                                                    )}
+                                                    {outletOp && (
+                                                         <div className="text-[10px] font-bold text-orange-600 leading-none whitespace-nowrap bg-orange-50/50 px-1.5 py-0.5 rounded-sm border border-orange-100/50">
+                                                            {outletOp.start}~{outletOp.end}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
                                         </div>
 
                                         {buwonStaff.map(staff => {
@@ -244,13 +310,21 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
                                             const sid = shiftData?.value;
                                             const shift = managedShifts[sid as string];
                                             const isManual = shiftData?.isManual;
+                                            
+                                            // Determine specific shift time to display
+                                            let shiftTimeStr = '';
+                                            if (sid === 'OPEN' && buwonOp) shiftTimeStr = buwonOp.openShift;
+                                            else if (sid === 'CLOSE' && buwonOp) shiftTimeStr = buwonOp.closeShift;
+                                            else if (sid === 'DUAL_OPEN' && outletOp) shiftTimeStr = outletOp.openShift; // Working at Outlet
+                                            else if (sid === 'DUAL_CLOSE' && outletOp) shiftTimeStr = outletOp.closeShift;
 
                                             return (
                                                 <div key={staff.id} onClick={() => openManualModal(dateKey, staff, shiftData || null)} className="p-1 border-r border-slate-100 flex items-center justify-center cursor-pointer group relative">
                                                     {shift ? (
-                                                        <div className={`w-full h-full rounded-md text-[10px] font-black flex items-center justify-center transition-all ${shift.color} relative`}>
+                                                        <div className={`w-full h-full rounded-md text-[10px] font-black flex flex-col items-center justify-center transition-all ${shift.color} relative`}>
                                                             {isManual && <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-slate-900/40 rounded-full"></div>}
-                                                            {shift.label}
+                                                            <span className="leading-tight">{shift.label}</span>
+                                                            {shiftTimeStr && <span className="text-[8px] opacity-80 font-medium leading-none mt-0.5">{shiftTimeStr}</span>}
                                                         </div>
                                                     ) : <Plus size={14} className="text-slate-300 opacity-0 group-hover:opacity-100"/>}
                                                 </div>
@@ -266,12 +340,20 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
                                             const shift = managedShifts[sid as string];
                                             const isManual = shiftData?.isManual;
 
+                                            // Determine specific shift time to display
+                                            let shiftTimeStr = '';
+                                            if (sid === 'OPEN' && outletOp) shiftTimeStr = outletOp.openShift;
+                                            else if (sid === 'CLOSE' && outletOp) shiftTimeStr = outletOp.closeShift;
+                                            else if (sid === 'DUAL_OPEN' && buwonOp) shiftTimeStr = buwonOp.openShift; // Working at Buwon
+                                            else if (sid === 'DUAL_CLOSE' && buwonOp) shiftTimeStr = buwonOp.closeShift;
+
                                             return (
                                                 <div key={staff.id} onClick={() => openManualModal(dateKey, staff, shiftData || null)} className="p-1 border-r border-slate-100 flex items-center justify-center cursor-pointer group relative">
                                                     {shift ? (
-                                                        <div className={`w-full h-full rounded-md text-[10px] font-black flex items-center justify-center transition-all ${shift.color} relative`}>
+                                                        <div className={`w-full h-full rounded-md text-[10px] font-black flex flex-col items-center justify-center transition-all ${shift.color} relative`}>
                                                              {isManual && <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-slate-900/40 rounded-full"></div>}
-                                                            {shift.label}
+                                                             <span className="leading-tight">{shift.label}</span>
+                                                             {shiftTimeStr && <span className="text-[8px] opacity-80 font-medium leading-none mt-0.5">{shiftTimeStr}</span>}
                                                         </div>
                                                     ) : <Plus size={14} className="text-slate-300 opacity-0 group-hover:opacity-100"/>}
                                                 </div>
