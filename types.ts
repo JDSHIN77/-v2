@@ -10,6 +10,7 @@ export interface ShiftInfo {
 export interface ShiftData {
   value: string;
   isManual: boolean;
+  shiftTime?: string;
 }
 
 export interface Staff {

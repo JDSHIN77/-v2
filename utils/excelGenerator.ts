@@ -183,13 +183,27 @@ export const downloadWeeklySchedule = (
                     rowData[colIdx] = '휴무';
                     rowData[colIdx + 1] = '1';
                 } else if (val.includes('OPEN') || val.includes('MIDDLE') || val.includes('CLOSE')) {
-                    let actualCinema = staff.cinema;
-                    if (val.startsWith('DUAL_')) {
-                        actualCinema = staff.cinema === 'BUWON' ? 'OUTLET' : 'BUWON';
+                    // Check if manual shift time exists
+                    if (shiftData.shiftTime) {
+                         // Parse custom time range (e.g. 13:00~22:00)
+                         // Try splitting by ~
+                         if (shiftData.shiftTime.includes('~')) {
+                            const [sTime, eTime] = shiftData.shiftTime.split('~').map(t => t.trim());
+                            rowData[colIdx] = sTime;
+                            rowData[colIdx + 1] = eTime;
+                         } else {
+                            rowData[colIdx] = shiftData.shiftTime;
+                            rowData[colIdx + 1] = '';
+                         }
+                    } else {
+                        let actualCinema = staff.cinema;
+                        if (val.startsWith('DUAL_')) {
+                            actualCinema = staff.cinema === 'BUWON' ? 'OUTLET' : 'BUWON';
+                        }
+                        const { start, end } = getShiftTimeRange(val, dk, actualCinema, operatingHours);
+                        rowData[colIdx] = start;
+                        rowData[colIdx + 1] = end;
                     }
-                    const { start, end } = getShiftTimeRange(val, dk, actualCinema, operatingHours);
-                    rowData[colIdx] = start;
-                    rowData[colIdx + 1] = end;
                 } else {
                     rowData[colIdx] = val;
                 }

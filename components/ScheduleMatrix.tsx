@@ -342,7 +342,8 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
                                             
                                             // Determine specific shift time to display
                                             let shiftTimeStr = '';
-                                            if (sid === 'OPEN' && buwonOp) shiftTimeStr = buwonOp.openShift;
+                                            if (shiftData?.shiftTime) shiftTimeStr = shiftData.shiftTime;
+                                            else if (sid === 'OPEN' && buwonOp) shiftTimeStr = buwonOp.openShift;
                                             else if (sid === 'CLOSE' && buwonOp) shiftTimeStr = buwonOp.closeShift;
                                             else if (sid === 'DUAL_OPEN' && outletOp) shiftTimeStr = outletOp.openShift; // Working at Outlet
                                             else if (sid === 'DUAL_CLOSE' && outletOp) shiftTimeStr = outletOp.closeShift;
@@ -371,7 +372,8 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
 
                                             // Determine specific shift time to display
                                             let shiftTimeStr = '';
-                                            if (sid === 'OPEN' && outletOp) shiftTimeStr = outletOp.openShift;
+                                            if (shiftData?.shiftTime) shiftTimeStr = shiftData.shiftTime;
+                                            else if (sid === 'OPEN' && outletOp) shiftTimeStr = outletOp.openShift;
                                             else if (sid === 'CLOSE' && outletOp) shiftTimeStr = outletOp.closeShift;
                                             else if (sid === 'DUAL_OPEN' && buwonOp) shiftTimeStr = buwonOp.openShift; // Working at Buwon
                                             else if (sid === 'DUAL_CLOSE' && buwonOp) shiftTimeStr = buwonOp.closeShift;

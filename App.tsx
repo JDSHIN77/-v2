@@ -43,6 +43,9 @@ export default function App() {
   const [isAddingShift, setIsAddingShift] = useState(false);
   const [newShiftName, setNewShiftName] = useState('');
 
+  // Manual Time Input for Middle Shifts
+  const [customTime, setCustomTime] = useState('');
+
   // Leave Management State
   const [leaveRecords, setLeaveRecords] = useState<LeaveRecord[]>([]);
   const [annualConfig, setAnnualConfig] = useState<AnnualLeaveConfig>({});
@@ -442,6 +445,25 @@ export default function App() {
      });
   };
 
+  const autoCalculateTimeRange = (input: string) => {
+      if (!input) return input;
+      if (input.includes('~')) return input;
+      
+      const match = input.match(/^(\d{1,2}):(\d{2})$/);
+      if (match) {
+          const h = parseInt(match[1], 10);
+          const m = parseInt(match[2], 10);
+          
+          let endH = h + 9;
+          if (endH >= 24) endH -= 24;
+
+          const startStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+          const endStr = `${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+          return `${startStr}~${endStr}`;
+      }
+      return input;
+  };
+
   const handleManualSave = (specificShiftId?: string) => {
     const targetShift = typeof specificShiftId === 'string' ? specificShiftId : tempSelectedShift;
     if (!manualModalData || !targetShift) return;
@@ -449,10 +471,17 @@ export default function App() {
     if(!next[manualModalData.dateKey]) next[manualModalData.dateKey] = {};
     
     next[manualModalData.dateKey] = { ...next[manualModalData.dateKey] };
-    next[manualModalData.dateKey][manualModalData.staff.id] = { 
+    const newShiftData: ShiftData = { 
         value: targetShift, 
         isManual: true 
     };
+
+    const finalTime = autoCalculateTimeRange(customTime);
+    if ((targetShift === 'MIDDLE' || targetShift === 'DUAL_MIDDLE') && finalTime) {
+        newShiftData.shiftTime = finalTime;
+    }
+
+    next[manualModalData.dateKey][manualModalData.staff.id] = newShiftData;
     
     setSchedules(next);
     setManualModalData(null);
@@ -533,6 +562,7 @@ export default function App() {
                         setTempSelectedShift(cs?.value || null); 
                         setIsAddingShift(false); 
                         setNewShiftName('');
+                        setCustomTime(cs?.shiftTime || '');
                     }} 
                     stats={stats}
                     cinemas={cinemas}
@@ -598,19 +628,35 @@ export default function App() {
                     </div>
                  </div>
                ) : (
-                 <div className="grid grid-cols-3 gap-2 mb-6 max-h-[300px] overflow-y-auto custom-scrollbar p-1">
-                    {(Object.entries(managedShifts) as [string, ShiftInfo][]).map(([key, shift]) => (
-                        <button 
-                          key={key} 
-                          onClick={() => setTempSelectedShift(key)}
-                          onDoubleClick={() => handleManualSave(key)}
-                          className={`py-3 rounded-2xl text-[11px] font-black border transition-all relative ${tempSelectedShift === key ? 'ring-2 ring-indigo-500 border-indigo-500 z-10 ' + shift.color : 'bg-slate-50 text-slate-500 border-slate-100 opacity-60 hover:opacity-100'}`}
-                        >
-                          {shift.label}
-                          {tempSelectedShift === key && <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></div>}
-                        </button>
-                    ))}
-                 </div>
+                 <>
+                     <div className="grid grid-cols-3 gap-2 mb-4 max-h-[300px] overflow-y-auto custom-scrollbar p-1">
+                        {(Object.entries(managedShifts) as [string, ShiftInfo][]).map(([key, shift]) => (
+                            <button 
+                              key={key} 
+                              onClick={() => setTempSelectedShift(key)}
+                              onDoubleClick={() => handleManualSave(key)}
+                              className={`py-3 rounded-2xl text-[11px] font-black border transition-all relative ${tempSelectedShift === key ? 'ring-2 ring-indigo-500 border-indigo-500 z-10 ' + shift.color : 'bg-slate-50 text-slate-500 border-slate-100 opacity-60 hover:opacity-100'}`}
+                            >
+                              {shift.label}
+                              {tempSelectedShift === key && <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></div>}
+                            </button>
+                        ))}
+                     </div>
+                     
+                     {(tempSelectedShift === 'MIDDLE' || tempSelectedShift === 'DUAL_MIDDLE') && (
+                        <div className="mb-4 bg-orange-50 p-3 rounded-xl border border-orange-100">
+                            <label className="text-[10px] font-bold text-orange-700 mb-1 block">미들 근무 시간 입력</label>
+                            <input 
+                                type="text" 
+                                value={customTime}
+                                onChange={(e) => setCustomTime(e.target.value)}
+                                onBlur={() => setCustomTime(autoCalculateTimeRange(customTime))}
+                                placeholder="예: 13:00 (자동완성)"
+                                className="w-full p-2 text-sm font-bold border border-orange-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-200 text-orange-900 placeholder:text-orange-300"
+                            />
+                        </div>
+                     )}
+                 </>
                )}
                
                {!isAddingShift && (
