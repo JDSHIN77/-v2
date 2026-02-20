@@ -1,9 +1,10 @@
 
 import React, { useState } from 'react';
-import { Calendar, Trash2, RefreshCw, Sparkles, MousePointerClick, Plus, BarChart3, Pencil, Check, Palmtree, Eraser, Lock, Clock, X } from 'lucide-react';
+import { Calendar, Trash2, RefreshCw, Sparkles, MousePointerClick, Plus, BarChart3, Pencil, Check, Palmtree, Eraser, Lock, Clock, X, FileSpreadsheet } from 'lucide-react';
 import { Staff, MonthSchedule, ShiftInfo, Cinema, StaffStats, ShiftData, DailyOperatingHours } from '../types';
 import { formatDateKey, getCinemaMonthRange } from '../utils/helpers';
 import { HOLIDAYS } from '../constants';
+import { downloadWeeklySchedule } from '../utils/excelGenerator';
 
 interface MatrixViewProps {
     currentDate: Date;
@@ -98,6 +99,22 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
     // Grid columns: Date(70px) | OpHours(120px) | Buwon Staff... | Sum(74px) | Gap | Outlet Staff... | Sum(74px)
     const gridTemplateStyle = { 
         gridTemplateColumns: `70px 120px repeat(${buwonStaff.length}, 100px) 74px 2px repeat(${outletStaff.length}, 100px) 74px` 
+    };
+
+    const handleDownloadExcel = (weekIdx: number, cinemaId: 'BUWON' | 'OUTLET') => {
+        // Extract dates for this week
+        const startIdx = weekIdx * 7;
+        const weekDates = days.slice(startIdx, startIdx + 7);
+        if (weekDates.length < 7) return;
+
+        downloadWeeklySchedule(
+            weekIdx, 
+            cinemaId, 
+            weekDates, 
+            staffList, 
+            schedules, 
+            operatingHours
+        );
     };
 
     return (
@@ -230,6 +247,12 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
                                             <div className="relative border-r border-indigo-100/50 bg-indigo-50/30 overflow-visible">
                                                 <div className="absolute top-1/2 right-1 transform -translate-y-1/2 flex items-center gap-1.5 w-max z-10">
                                                     <button 
+                                                        onClick={() => handleDownloadExcel(weekIndex, 'BUWON')}
+                                                        className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500 text-white text-[9px] font-bold rounded-full shadow-lg shadow-emerald-200 hover:bg-emerald-600 hover:scale-105 transition-all active:scale-95 whitespace-nowrap"
+                                                    >
+                                                        <FileSpreadsheet size={10}/> 엑셀
+                                                    </button>
+                                                    <button 
                                                         onClick={() => generateSchedule('BUWON', weekIndex)}
                                                         disabled={isGenerating}
                                                         className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 text-white text-[9px] font-bold rounded-full shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:scale-105 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
@@ -255,6 +278,12 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
                                             {/* OUTLET Controls (In Total Column) */}
                                             <div className="relative border-r border-indigo-100/50 bg-orange-50/30 overflow-visible">
                                                 <div className="absolute top-1/2 right-1 transform -translate-y-1/2 flex items-center gap-1.5 w-max z-10">
+                                                    <button 
+                                                        onClick={() => handleDownloadExcel(weekIndex, 'OUTLET')}
+                                                        className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500 text-white text-[9px] font-bold rounded-full shadow-lg shadow-emerald-200 hover:bg-emerald-600 hover:scale-105 transition-all active:scale-95 whitespace-nowrap"
+                                                    >
+                                                        <FileSpreadsheet size={10}/> 엑셀
+                                                    </button>
                                                     <button 
                                                         onClick={() => generateSchedule('OUTLET', weekIndex)}
                                                         disabled={isGenerating}
